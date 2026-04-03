@@ -1,33 +1,37 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "eu.ansvar/finnish-data-protection-mcp",
-  "description": "Query Tietosuojavaltuutetun toimisto decisions, sanctions, and guidance on data protection and GDPR enforcement in Finland",
+  "description": "Tietosuojavaltuutetun toimisto (Finnish data protection authority) MCP server — decisions, sanctions, and guidance on GDPR enforcement in Finland",
   "repository": {
     "url": "https://github.com/Ansvar-Systems/finnish-data-protection-mcp",
     "source": "github"
   },
   "homepage": "https://ansvar.eu",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "license": "Apache-2.0",
   "keywords": [
-    "tietosuojavaltuutettu",
-    "finnish-data-protection",
-    "gdpr",
+    "data protection",
     "finland",
-    "data-protection",
-    "privacy",
-    "sanctions",
+    "regulation",
     "compliance",
-    "mcp",
-    "ansvar"
+    "mcp"
   ],
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@ansvar/finnish-data-protection-mcp",
-      "version": "0.1.0",
+      "version": "1.0.0",
       "transport": {
         "type": "stdio"
+      }
+    },
+    {
+      "registryType": "npm",
+      "identifier": "@ansvar/finnish-data-protection-mcp",
+      "version": "1.0.0",
+      "transport": {
+        "type": "streamable-http",
+        "url": "https://mcp.ansvar.eu/finnish-data-protection/mcp"
       }
     }
   ]
