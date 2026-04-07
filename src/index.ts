@@ -26,6 +26,7 @@ import {
   getGuideline,
   listTopics,
 } from "./db.js";
+import { buildCitation } from "./citation.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -226,7 +227,17 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (!decision) {
           return errorContent(`Decision not found: ${parsed.reference}`);
         }
-        return textContent(decision);
+        const decisionRecord = decision as Record<string, unknown>;
+        return textContent({
+          ...decisionRecord,
+          _citation: buildCitation(
+            String(decisionRecord.reference ?? parsed.reference),
+            String(decisionRecord.title ?? decisionRecord.reference ?? parsed.reference),
+            "fi_dp_get_decision",
+            { reference: parsed.reference },
+            decisionRecord.url as string | undefined,
+          ),
+        });
       }
 
       case "fi_dp_search_guidelines": {
@@ -246,7 +257,17 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (!guideline) {
           return errorContent(`Guideline not found: id=${parsed.id}`);
         }
-        return textContent(guideline);
+        const guidelineRecord = guideline as Record<string, unknown>;
+        return textContent({
+          ...guidelineRecord,
+          _citation: buildCitation(
+            String(guidelineRecord.reference ?? guidelineRecord.id ?? parsed.id),
+            String(guidelineRecord.title ?? guidelineRecord.reference ?? `Guideline ${parsed.id}`),
+            "fi_dp_get_guideline",
+            { id: String(parsed.id) },
+            guidelineRecord.url as string | undefined,
+          ),
+        });
       }
 
       case "fi_dp_list_topics": {
