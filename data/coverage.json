@@ -1,0 +1,46 @@
+{
+  "$schema": "https://ansvar.eu/schemas/mcp-coverage/v1.json",
+  "mcp": "eu.ansvar/finnish-data-protection-mcp",
+  "authority": "Tietosuojavaltuutetun toimisto (TSV) — Finnish Data Protection Ombudsman",
+  "jurisdiction": "FI",
+  "last_updated": "2026-04-09",
+  "corpus": {
+    "decisions": {
+      "description": "TSV enforcement decisions: päätökset, seuraamusmaksut (fines), and huomautukset (reprimands)",
+      "source_url": "https://tietosuoja.fi/paatokset",
+      "coverage_start": "2019-01-01",
+      "notes": "Covers decisions since GDPR entered into force (25 May 2018). Earlier decisions under the Personal Data Act (Henkilötietolaki 523/1999) are not included.",
+      "known_gaps": [
+        "Pre-GDPR decisions under Henkilötietolaki 523/1999 are excluded",
+        "Pending/draft decisions not yet published on tietosuoja.fi are not included",
+        "Full text may be redacted for third-party privacy where TSV has published only summaries"
+      ]
+    },
+    "guidelines": {
+      "description": "TSV guidance documents: ohjeet (guidelines), suositukset (recommendations), kannanotot (statements), and FAQ documents",
+      "source_url": "https://tietosuoja.fi/ohjeet-ja-julkaisut",
+      "coverage_start": "2018-05-25",
+      "notes": "Covers guidance published since GDPR implementation. Includes Finnish-language documents; some documents may also be available in Swedish or English.",
+      "known_gaps": [
+        "EDPB guidelines referenced but not co-published by TSV are not duplicated here — use the EDPB MCP for those",
+        "Archived pre-GDPR guidance under the old DPA (Tietosuojalautakunta) is not included"
+      ]
+    },
+    "topics": {
+      "description": "Controlled vocabulary for data protection topics covered by the corpus",
+      "entries": [
+        { "id": "evaesteet", "name_fi": "Evästeet", "name_en": "Cookies" },
+        { "id": "terveydenhuolto", "name_fi": "Terveydenhuolto", "name_en": "Healthcare" },
+        { "id": "suostumus", "name_fi": "Suostumus", "name_en": "Consent" },
+        { "id": "rekisteroidyn-oikeudet", "name_fi": "Rekisteröidyn oikeudet", "name_en": "Data subject rights" },
+        { "id": "vaikutustenarviointi", "name_fi": "Vaikutustenarviointi (DPIA)", "name_en": "Data Protection Impact Assessment" },
+        { "id": "siirrot", "name_fi": "Tietojen siirrot", "name_en": "Data transfers" },
+        { "id": "kameravalvonta", "name_fi": "Kameravalvonta", "name_en": "CCTV / camera surveillance" },
+        { "id": "tyontekijat", "name_fi": "Työntekijöiden tietosuoja", "name_en": "Employee data protection" },
+        { "id": "lapset", "name_fi": "Lasten tietosuoja", "name_en": "Children's data protection" }
+      ]
+    }
+  },
+  "completeness": "partial",
+  "completeness_notes": "This corpus is an ongoing extraction from tietosuoja.fi. Completeness varies by year; older decisions may be under-represented. Run fi_dp_check_data_freshness for current row counts."
+}
