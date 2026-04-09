@@ -25,6 +25,7 @@ import {
   searchGuidelines,
   getGuideline,
   listTopics,
+  getDataFreshness,
 } from "./db.js";
 import { buildCitation } from "./citation.js";
 
@@ -151,6 +152,26 @@ const TOOLS = [
       required: [],
     },
   },
+  {
+    name: "fi_dp_list_sources",
+    description:
+      "Return the canonical data source URLs and descriptions for this MCP server. Use this to verify provenance or link users to primary sources.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "fi_dp_check_data_freshness",
+    description:
+      "Return the current row counts and latest record dates for decisions and guidelines in the database. Use this to assess how up-to-date the data is before citing it.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
 ];
 
 // --- Zod schemas for argument validation --------------------------------------
@@ -177,12 +198,28 @@ const GetGuidelineArgs = z.object({
   id: z.number().int().positive(),
 });
 
+// --- Shared _meta block (required on every response per golden standard) -----
+
+const RESPONSE_META = {
+  disclaimer:
+    "This data is provided for informational purposes only and does not constitute legal advice. Verify against primary sources at tietosuoja.fi before relying on it.",
+  copyright:
+    "Tietosuojavaltuutetun toimisto (Finnish Data Protection Ombudsman). Sourced from public government publications.",
+  source_url: "https://tietosuoja.fi/",
+  data_age:
+    "Use fi_dp_check_data_freshness to retrieve current row counts and latest record dates.",
+} as const;
+
 // --- Helper ------------------------------------------------------------------
 
 function textContent(data: unknown) {
+  const payload =
+    typeof data === "object" && data !== null && !Array.isArray(data)
+      ? { ...(data as Record<string, unknown>), _meta: RESPONSE_META }
+      : { data, _meta: RESPONSE_META };
   return {
     content: [
-      { type: "text" as const, text: JSON.stringify(data, null, 2) },
+      { type: "text" as const, text: JSON.stringify(payload, null, 2) },
     ],
   };
 }
@@ -289,6 +326,32 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           },
           tools: TOOLS.map((t) => ({ name: t.name, description: t.description })),
         });
+      }
+
+      case "fi_dp_list_sources": {
+        return textContent({
+          sources: [
+            {
+              id: "tietosuoja_decisions",
+              name: "TSV Decisions (Päätökset)",
+              url: "https://tietosuoja.fi/paatokset",
+              description:
+                "Finnish Data Protection Ombudsman enforcement decisions, sanctions (seuraamusmaksut), and notices (huomautukset)",
+            },
+            {
+              id: "tietosuoja_guidelines",
+              name: "TSV Guidelines (Ohjeet ja suositukset)",
+              url: "https://tietosuoja.fi/ohjeet-ja-julkaisut",
+              description:
+                "Official guidance documents (ohjeet), recommendations (suositukset), and FAQ documents on GDPR implementation",
+            },
+          ],
+        });
+      }
+
+      case "fi_dp_check_data_freshness": {
+        const freshness = getDataFreshness();
+        return textContent(freshness);
       }
 
       default:

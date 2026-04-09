@@ -1,9 +1,9 @@
 /**
- * SQLite database access layer for the CNIL MCP server.
+ * SQLite database access layer for the Finnish Data Protection MCP server.
  *
  * Schema:
- *   - decisions    — CNIL deliberations, sanctions, and mises en demeure
- *   - guidelines   — CNIL guidance documents, recommandations, and referentiels
+ *   - decisions    — TSV päätökset (decisions), seuraamusmaksut (sanctions), and huomautukset
+ *   - guidelines   — TSV ohjeet (guidance documents) and suositukset (recommendations)
  *   - topics       — controlled vocabulary for data protection topics
  *
  * FTS5 virtual tables back full-text search on decisions and guidelines.
@@ -260,4 +260,27 @@ export function listTopics(): Topic[] {
   return db
     .prepare("SELECT * FROM topics ORDER BY id")
     .all() as Topic[];
+}
+
+// --- Data freshness -----------------------------------------------------------
+
+export interface DataFreshness {
+  decisions: { count: number; latest_date: string | null };
+  guidelines: { count: number; latest_date: string | null };
+  checked_at: string;
+}
+
+export function getDataFreshness(): DataFreshness {
+  const db = getDb();
+  const decisionsRow = db
+    .prepare("SELECT COUNT(*) as count, MAX(date) as latest_date FROM decisions")
+    .get() as { count: number; latest_date: string | null };
+  const guidelinesRow = db
+    .prepare("SELECT COUNT(*) as count, MAX(date) as latest_date FROM guidelines")
+    .get() as { count: number; latest_date: string | null };
+  return {
+    decisions: { count: decisionsRow.count, latest_date: decisionsRow.latest_date },
+    guidelines: { count: guidelinesRow.count, latest_date: guidelinesRow.latest_date },
+    checked_at: new Date().toISOString(),
+  };
 }

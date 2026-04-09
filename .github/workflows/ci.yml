@@ -1,0 +1,43 @@
+# =============================================================================
+# CI — Build check for pull requests
+# =============================================================================
+#
+# Runs `npm run build` (TypeScript compilation) on every PR targeting dev or
+# main to catch type errors before merge.  Mirrors the build step used in the
+# GHCR image but without Docker or push steps.
+#
+# =============================================================================
+
+name: CI
+
+on:
+  pull_request:
+    branches: [dev, main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: TypeScript build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build (tsc)
+        run: npm run build
