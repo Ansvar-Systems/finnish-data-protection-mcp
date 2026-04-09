@@ -29,7 +29,9 @@ import {
   searchGuidelines,
   getGuideline,
   listTopics,
+  getDataFreshness,
 } from "./db.js";
+import { buildCitation } from "./citation.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -121,6 +123,18 @@ const TOOLS = [
     description: "Return metadata about this MCP server: version, data source, coverage, and tool list.",
     inputSchema: { type: "object" as const, properties: {}, required: [] },
   },
+  {
+    name: "fi_dp_list_sources",
+    description:
+      "Return the canonical data source URLs and descriptions for this MCP server. Use this to verify provenance or link users to primary sources.",
+    inputSchema: { type: "object" as const, properties: {}, required: [] },
+  },
+  {
+    name: "fi_dp_check_data_freshness",
+    description:
+      "Return the current row counts and latest record dates for decisions and guidelines in the database. Use this to assess how up-to-date the data is before citing it.",
+    inputSchema: { type: "object" as const, properties: {}, required: [] },
+  },
 ];
 
 // --- Zod schemas -------------------------------------------------------------
@@ -147,6 +161,18 @@ const GetGuidelineArgs = z.object({
   id: z.number().int().positive(),
 });
 
+// --- Shared _meta block (required on every response per golden standard) -----
+
+const RESPONSE_META = {
+  disclaimer:
+    "This data is provided for informational purposes only and does not constitute legal advice. Verify against primary sources at tietosuoja.fi before relying on it.",
+  copyright:
+    "Tietosuojavaltuutetun toimisto (Finnish Data Protection Ombudsman). Sourced from public government publications.",
+  source_url: "https://tietosuoja.fi/",
+  data_age:
+    "Use fi_dp_check_data_freshness to retrieve current row counts and latest record dates.",
+} as const;
+
 // --- MCP server factory ------------------------------------------------------
 
 function createMcpServer(): Server {
@@ -163,8 +189,12 @@ function createMcpServer(): Server {
     const { name, arguments: args = {} } = request.params;
 
     function textContent(data: unknown) {
+      const payload =
+        typeof data === "object" && data !== null && !Array.isArray(data)
+          ? { ...(data as Record<string, unknown>), _meta: RESPONSE_META }
+          : { data, _meta: RESPONSE_META };
       return {
-        content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
+        content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }],
       };
     }
 
@@ -186,7 +216,17 @@ function createMcpServer(): Server {
           const parsed = GetDecisionArgs.parse(args);
           const decision = getDecision(parsed.reference);
           if (!decision) return errorContent(`Decision not found: ${parsed.reference}`);
-          return textContent(decision);
+          const decisionRecord = decision as Record<string, unknown>;
+          return textContent({
+            ...decisionRecord,
+            _citation: buildCitation(
+              String(decisionRecord["reference"] ?? parsed.reference),
+              String(decisionRecord["title"] ?? decisionRecord["reference"] ?? parsed.reference),
+              "fi_dp_get_decision",
+              { reference: parsed.reference },
+              decisionRecord["url"] as string | undefined,
+            ),
+          });
         }
         case "fi_dp_search_guidelines": {
           const parsed = SearchGuidelinesArgs.parse(args);
@@ -197,7 +237,17 @@ function createMcpServer(): Server {
           const parsed = GetGuidelineArgs.parse(args);
           const guideline = getGuideline(parsed.id);
           if (!guideline) return errorContent(`Guideline not found: id=${parsed.id}`);
-          return textContent(guideline);
+          const guidelineRecord = guideline as Record<string, unknown>;
+          return textContent({
+            ...guidelineRecord,
+            _citation: buildCitation(
+              String(guidelineRecord["reference"] ?? guidelineRecord["id"] ?? parsed.id),
+              String(guidelineRecord["title"] ?? guidelineRecord["reference"] ?? `Guideline ${parsed.id}`),
+              "fi_dp_get_guideline",
+              { id: String(parsed.id) },
+              guidelineRecord["url"] as string | undefined,
+            ),
+          });
         }
         case "fi_dp_list_topics": {
           const topics = listTopics();
@@ -211,6 +261,30 @@ function createMcpServer(): Server {
             data_source: "Tietosuojavaltuutetun toimisto (https://tietosuoja.fi/)",
             tools: TOOLS.map((t) => ({ name: t.name, description: t.description })),
           });
+        }
+        case "fi_dp_list_sources": {
+          return textContent({
+            sources: [
+              {
+                id: "tietosuoja_decisions",
+                name: "TSV Decisions (Päätökset)",
+                url: "https://tietosuoja.fi/paatokset",
+                description:
+                  "Finnish Data Protection Ombudsman enforcement decisions, sanctions (seuraamusmaksut), and notices (huomautukset)",
+              },
+              {
+                id: "tietosuoja_guidelines",
+                name: "TSV Guidelines (Ohjeet ja suositukset)",
+                url: "https://tietosuoja.fi/ohjeet-ja-julkaisut",
+                description:
+                  "Official guidance documents (ohjeet), recommendations (suositukset), and FAQ documents on GDPR implementation",
+              },
+            ],
+          });
+        }
+        case "fi_dp_check_data_freshness": {
+          const freshness = getDataFreshness();
+          return textContent(freshness);
         }
         default:
           return errorContent(`Unknown tool: ${name}`);

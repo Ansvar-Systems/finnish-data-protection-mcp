@@ -1,0 +1,45 @@
+# =============================================================================
+# Monthly Data Freshness Check
+# =============================================================================
+#
+# Triggers a Docker image rebuild on the first day of each month so that the
+# production container picks up any new TSV decisions or guidelines that have
+# been ingested into the database via scripts/ingest-tietosuoja.ts.
+#
+# On a schedule trigger, the GHCR build workflow (ghcr-build.yml) runs on the
+# main branch, producing a new :latest image.  Watchtower on the Hetzner prod
+# server polls GHCR every 6 hours and will restart the container automatically.
+#
+# Manual dispatch is also available to trigger an out-of-cycle rebuild.
+#
+# =============================================================================
+
+name: Monthly Rebuild
+
+on:
+  schedule:
+    # First day of every month at 04:00 UTC
+    - cron: "0 4 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  trigger-rebuild:
+    name: Trigger GHCR build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger ghcr-build workflow on main
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'ghcr-build.yml',
+              ref: 'main',
+            });
+            core.info('Triggered ghcr-build.yml on main for monthly rebuild.');
