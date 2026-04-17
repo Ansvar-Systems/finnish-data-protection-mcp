@@ -215,7 +215,7 @@ const RESPONSE_META = {
 function textContent(data: unknown) {
   const payload =
     typeof data === "object" && data !== null && !Array.isArray(data)
-      ? { ...(data as Record<string, unknown>), _meta: RESPONSE_META }
+      ? { ...(data as unknown as Record<string, unknown>), _meta: RESPONSE_META }
       : { data, _meta: RESPONSE_META };
   return {
     content: [
@@ -264,7 +264,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (!decision) {
           return errorContent(`Decision not found: ${parsed.reference}`);
         }
-        const decisionRecord = decision as Record<string, unknown>;
+        const decisionRecord = decision as unknown as Record<string, unknown>;
         return textContent({
           ...decisionRecord,
           _citation: buildCitation(
@@ -294,7 +294,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (!guideline) {
           return errorContent(`Guideline not found: id=${parsed.id}`);
         }
-        const guidelineRecord = guideline as Record<string, unknown>;
+        const guidelineRecord = guideline as unknown as Record<string, unknown>;
         return textContent({
           ...guidelineRecord,
           _citation: buildCitation(
