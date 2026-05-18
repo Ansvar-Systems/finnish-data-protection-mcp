@@ -17,6 +17,7 @@ export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS decisions (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
   reference    TEXT    NOT NULL UNIQUE,
+  source_url   TEXT,
   title        TEXT    NOT NULL,
   date         TEXT,
   type         TEXT,
@@ -60,6 +61,7 @@ END;
 CREATE TABLE IF NOT EXISTS guidelines (
   id        INTEGER PRIMARY KEY AUTOINCREMENT,
   reference TEXT,
+  source_url TEXT,
   title     TEXT    NOT NULL,
   date      TEXT,
   type      TEXT,
@@ -108,6 +110,7 @@ CREATE TABLE IF NOT EXISTS topics (
 export interface Decision {
   id: number;
   reference: string;
+  source_url: string | null;
   title: string;
   date: string | null;
   type: string | null;
@@ -123,6 +126,7 @@ export interface Decision {
 export interface Guideline {
   id: number;
   reference: string | null;
+  source_url: string | null;
   title: string;
   date: string | null;
   type: string | null;
@@ -137,6 +141,34 @@ export interface Topic {
   name_local: string;
   name_en: string;
   description: string | null;
+}
+
+// FTS5 on this DB uses the default `unicode61` tokenizer which has no
+// Finnish stemmer. Bare-stem queries against Finnish corpora silently
+// return zero results because the indexed tokens are inflected forms
+// (e.g. "tietosuoja" → 2 hits, "tietosuoja*" → 3 hits on the v0.1.0 prod
+// corpus). We auto-append `*` to bare alphanumeric tokens so callers can
+// submit natural queries without knowing about FTS5 prefix syntax. Skip
+// the rewrite when the query already contains FTS operators so power users
+// keep control. See feedback_source_url_provenance_column_is_p0_2026_05_18
+// (sibling concern) and the fi-fin PR #22 implementation.
+export function rewriteQueryForFts(q: string): string {
+  const trimmed = q.trim();
+  if (trimmed.length === 0) return trimmed;
+  // Pass through if the query already uses any FTS5 operator/syntax.
+  // Operators: AND OR NOT NEAR (uppercase per FTS5 grammar);
+  // quoted phrases ("..."), prefix (*), column filter (:),
+  // negation (-), set-grouping (^), parens.
+  if (/(\bAND\b|\bOR\b|\bNOT\b|\bNEAR\b|["*:\^()-])/.test(trimmed)) {
+    return trimmed;
+  }
+  // Append `*` to each bare token (alphanumeric incl. Finnish accents).
+  // Tokens must already be >= 1 char; FTS5 rejects bare `*` so skip pure-punct.
+  return trimmed
+    .split(/\s+/)
+    .map((tok) => (/^[\p{L}\p{N}_]+$/u.test(tok) ? `${tok}*` : tok))
+    .filter((tok) => tok.length > 0)
+    .join(" ");
 }
 
 // --- DB singleton -------------------------------------------------------------
@@ -167,9 +199,10 @@ export interface SearchDecisionsOptions {
 export function searchDecisions(opts: SearchDecisionsOptions): Decision[] {
   const db = getDb();
   const limit = opts.limit ?? 20;
+  const query = rewriteQueryForFts(opts.query);
 
   const conditions: string[] = ["decisions_fts MATCH :query"];
-  const params: Record<string, unknown> = { query: opts.query, limit };
+  const params: Record<string, unknown> = { query, limit };
 
   if (opts.type) {
     conditions.push("d.type = :type");
@@ -213,9 +246,10 @@ export interface SearchGuidelinesOptions {
 export function searchGuidelines(opts: SearchGuidelinesOptions): Guideline[] {
   const db = getDb();
   const limit = opts.limit ?? 20;
+  const query = rewriteQueryForFts(opts.query);
 
   const conditions: string[] = ["guidelines_fts MATCH :query"];
-  const params: Record<string, unknown> = { query: opts.query, limit };
+  const params: Record<string, unknown> = { query, limit };
 
   if (opts.type) {
     conditions.push("g.type = :type");

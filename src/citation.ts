@@ -121,6 +121,48 @@ export function buildProvisionCitation(
 }
 
 /**
+ * Attach a `_citation` block to each item in a search-result array
+ * (Golden Standard §4.8c). The caller supplies how to derive the
+ * canonical-ref / display-text / lookup-args for each row.
+ *
+ * Generic over the row shape so the same helper works for decisions
+ * and guidelines without giving up types.
+ *
+ * @param items     Source rows.
+ * @param toolName  The tool that produced these rows (e.g. "fi_dp_search_decisions").
+ * @param shape     Per-row callbacks that return canonical_ref, display_text,
+ *                  lookup args, and (optionally) source_url + aliases.
+ */
+export function attachCitationsToSearchResults<
+  T extends Record<string, unknown>,
+>(
+  items: T[],
+  toolName: string,
+  shape: (row: T) => {
+    canonical_ref: string;
+    display_text: string;
+    lookup_args: Record<string, string>;
+    source_url?: string | null;
+    aliases?: string[];
+  },
+): Array<T & { _citation: CitationMetadata }> {
+  return items.map((row) => {
+    const s = shape(row);
+    return {
+      ...row,
+      _citation: buildCitation(
+        s.canonical_ref,
+        s.display_text,
+        toolName,
+        s.lookup_args,
+        s.source_url ?? null,
+        s.aliases,
+      ),
+    };
+  });
+}
+
+/**
  * Build citation for a sector regulator decision/regulation.
  *
  * @param reference      Decision/regulation reference (e.g., "FFFS 2024:1")

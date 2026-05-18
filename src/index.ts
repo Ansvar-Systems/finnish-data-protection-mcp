@@ -27,7 +27,7 @@ import {
   listTopics,
   getDataFreshness,
 } from "./db.js";
-import { buildCitation } from "./citation.js";
+import { attachCitationsToSearchResults, buildCitation } from "./citation.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -249,12 +249,29 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     switch (name) {
       case "fi_dp_search_decisions": {
         const parsed = SearchDecisionsArgs.parse(args);
-        const results = searchDecisions({
+        const rows = searchDecisions({
           query: parsed.query,
           type: parsed.type,
           topic: parsed.topic,
           limit: parsed.limit,
         });
+        const results = attachCitationsToSearchResults(
+          rows as unknown as Array<Record<string, unknown>>,
+          "fi_dp_search_decisions",
+          (row) => ({
+            canonical_ref: String(row["reference"] ?? ""),
+            display_text: String(
+              row["title"] ?? row["reference"] ?? "(untitled)",
+            ),
+            lookup_args: {
+              reference: String(row["reference"] ?? ""),
+            },
+            source_url:
+              typeof row["source_url"] === "string"
+                ? (row["source_url"] as string)
+                : null,
+          }),
+        );
         return textContent({ results, count: results.length });
       }
 
@@ -265,6 +282,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           return errorContent(`Decision not found: ${parsed.reference}`);
         }
         const decisionRecord = decision as unknown as Record<string, unknown>;
+        const sourceUrl =
+          typeof decisionRecord["source_url"] === "string"
+            ? (decisionRecord["source_url"] as string)
+            : null;
         return textContent({
           ...decisionRecord,
           _citation: buildCitation(
@@ -272,19 +293,36 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             String(decisionRecord.title ?? decisionRecord.reference ?? parsed.reference),
             "fi_dp_get_decision",
             { reference: parsed.reference },
-            decisionRecord.url as string | undefined,
+            sourceUrl,
           ),
         });
       }
 
       case "fi_dp_search_guidelines": {
         const parsed = SearchGuidelinesArgs.parse(args);
-        const results = searchGuidelines({
+        const rows = searchGuidelines({
           query: parsed.query,
           type: parsed.type,
           topic: parsed.topic,
           limit: parsed.limit,
         });
+        const results = attachCitationsToSearchResults(
+          rows as unknown as Array<Record<string, unknown>>,
+          "fi_dp_search_guidelines",
+          (row) => ({
+            canonical_ref: String(row["reference"] ?? row["id"] ?? ""),
+            display_text: String(
+              row["title"] ?? row["reference"] ?? `Guideline ${row["id"]}`,
+            ),
+            lookup_args: {
+              id: String(row["id"] ?? ""),
+            },
+            source_url:
+              typeof row["source_url"] === "string"
+                ? (row["source_url"] as string)
+                : null,
+          }),
+        );
         return textContent({ results, count: results.length });
       }
 
@@ -295,6 +333,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           return errorContent(`Guideline not found: id=${parsed.id}`);
         }
         const guidelineRecord = guideline as unknown as Record<string, unknown>;
+        const sourceUrl =
+          typeof guidelineRecord["source_url"] === "string"
+            ? (guidelineRecord["source_url"] as string)
+            : null;
         return textContent({
           ...guidelineRecord,
           _citation: buildCitation(
@@ -302,7 +344,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             String(guidelineRecord.title ?? guidelineRecord.reference ?? `Guideline ${parsed.id}`),
             "fi_dp_get_guideline",
             { id: String(parsed.id) },
-            guidelineRecord.url as string | undefined,
+            sourceUrl,
           ),
         });
       }
