@@ -27,7 +27,12 @@ import {
   listTopics,
   getDataFreshness,
 } from "./db.js";
-import { attachCitationsToSearchResults, buildCitation } from "./citation.js";
+import { buildCitation, buildProvenanceCitation } from "./citation.js";
+
+// Provenance attribution constants for fi_dp_* tool envelopes.
+// Used by buildProvenanceCitation per spec 2026-05-18 §6.
+const PROV_PUBLISHER = "Tietosuojavaltuutetun toimisto (TSV)";
+const PROV_LICENSE = "FI-Statutory-PD";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -255,23 +260,25 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           topic: parsed.topic,
           limit: parsed.limit,
         });
-        const results = attachCitationsToSearchResults(
-          rows as unknown as Array<Record<string, unknown>>,
-          "fi_dp_search_decisions",
-          (row) => ({
-            canonical_ref: String(row["reference"] ?? ""),
-            display_text: String(
-              row["title"] ?? row["reference"] ?? "(untitled)",
+        // Per spec §6: every search result carries the provenance envelope
+        // on `_citation`. Rows without source_url are skipped from citation
+        // emission (No Silent Fallbacks) but still returned with row data.
+        const results = rows.map((row) => {
+          const rec = row as unknown as Record<string, unknown>;
+          const sourceUrl =
+            typeof rec["source_url"] === "string"
+              ? (rec["source_url"] as string)
+              : "";
+          if (!sourceUrl) return rec;
+          return {
+            ...rec,
+            _citation: buildProvenanceCitation(
+              { source_url: sourceUrl },
+              PROV_PUBLISHER,
+              PROV_LICENSE,
             ),
-            lookup_args: {
-              reference: String(row["reference"] ?? ""),
-            },
-            source_url:
-              typeof row["source_url"] === "string"
-                ? (row["source_url"] as string)
-                : null,
-          }),
-        );
+          };
+        });
         return textContent({ results, count: results.length });
       }
 
@@ -286,16 +293,26 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           typeof decisionRecord["source_url"] === "string"
             ? (decisionRecord["source_url"] as string)
             : null;
-        return textContent({
+        // Per spec §6: provenance envelope on `_citation`; deterministic
+        // canonical_ref envelope on `_entity_citation` (law-mcp §4.9c).
+        const out: Record<string, unknown> = {
           ...decisionRecord,
-          _citation: buildCitation(
-            String(decisionRecord.reference ?? parsed.reference),
-            String(decisionRecord.title ?? decisionRecord.reference ?? parsed.reference),
+          _entity_citation: buildCitation(
+            String(decisionRecord["reference"] ?? parsed.reference),
+            String(decisionRecord["title"] ?? decisionRecord["reference"] ?? parsed.reference),
             "fi_dp_get_decision",
             { reference: parsed.reference },
             sourceUrl,
           ),
-        });
+        };
+        if (sourceUrl) {
+          out["_citation"] = buildProvenanceCitation(
+            { source_url: sourceUrl },
+            PROV_PUBLISHER,
+            PROV_LICENSE,
+          );
+        }
+        return textContent(out);
       }
 
       case "fi_dp_search_guidelines": {
@@ -306,23 +323,22 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           topic: parsed.topic,
           limit: parsed.limit,
         });
-        const results = attachCitationsToSearchResults(
-          rows as unknown as Array<Record<string, unknown>>,
-          "fi_dp_search_guidelines",
-          (row) => ({
-            canonical_ref: String(row["reference"] ?? row["id"] ?? ""),
-            display_text: String(
-              row["title"] ?? row["reference"] ?? `Guideline ${row["id"]}`,
+        const results = rows.map((row) => {
+          const rec = row as unknown as Record<string, unknown>;
+          const sourceUrl =
+            typeof rec["source_url"] === "string"
+              ? (rec["source_url"] as string)
+              : "";
+          if (!sourceUrl) return rec;
+          return {
+            ...rec,
+            _citation: buildProvenanceCitation(
+              { source_url: sourceUrl },
+              PROV_PUBLISHER,
+              PROV_LICENSE,
             ),
-            lookup_args: {
-              id: String(row["id"] ?? ""),
-            },
-            source_url:
-              typeof row["source_url"] === "string"
-                ? (row["source_url"] as string)
-                : null,
-          }),
-        );
+          };
+        });
         return textContent({ results, count: results.length });
       }
 
@@ -337,16 +353,24 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           typeof guidelineRecord["source_url"] === "string"
             ? (guidelineRecord["source_url"] as string)
             : null;
-        return textContent({
+        const out: Record<string, unknown> = {
           ...guidelineRecord,
-          _citation: buildCitation(
-            String(guidelineRecord.reference ?? guidelineRecord.id ?? parsed.id),
-            String(guidelineRecord.title ?? guidelineRecord.reference ?? `Guideline ${parsed.id}`),
+          _entity_citation: buildCitation(
+            String(guidelineRecord["reference"] ?? guidelineRecord["id"] ?? parsed.id),
+            String(guidelineRecord["title"] ?? guidelineRecord["reference"] ?? `Guideline ${parsed.id}`),
             "fi_dp_get_guideline",
             { id: String(parsed.id) },
             sourceUrl,
           ),
-        });
+        };
+        if (sourceUrl) {
+          out["_citation"] = buildProvenanceCitation(
+            { source_url: sourceUrl },
+            PROV_PUBLISHER,
+            PROV_LICENSE,
+          );
+        }
+        return textContent(out);
       }
 
       case "fi_dp_list_topics": {
