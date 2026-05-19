@@ -31,7 +31,12 @@ import {
   listTopics,
   getDataFreshness,
 } from "./db.js";
-import { buildCitation } from "./citation.js";
+import { buildCitation, buildProvenanceCitation } from "./citation.js";
+
+// Provenance attribution constants for fi_dp_* tool envelopes.
+// Used by buildProvenanceCitation per spec 2026-05-18 §6.
+const PROV_PUBLISHER = "Tietosuojavaltuutetun toimisto (TSV)";
+const PROV_LICENSE = "FI-Statutory-PD";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -209,7 +214,24 @@ function createMcpServer(): Server {
       switch (name) {
         case "fi_dp_search_decisions": {
           const parsed = SearchDecisionsArgs.parse(args);
-          const results = searchDecisions({ query: parsed.query, type: parsed.type, topic: parsed.topic, limit: parsed.limit });
+          const rows = searchDecisions({ query: parsed.query, type: parsed.type, topic: parsed.topic, limit: parsed.limit });
+          // Per spec §6: every search result carries the provenance envelope
+          // on `_citation`. Rows without source_url are returned without it
+          // (No Silent Fallbacks — refuse rather than emit citations pointing nowhere).
+          const results = rows.map((row) => {
+            const rec = row as unknown as Record<string, unknown>;
+            const sourceUrl =
+              typeof rec["source_url"] === "string" ? (rec["source_url"] as string) : "";
+            if (!sourceUrl) return rec;
+            return {
+              ...rec,
+              _citation: buildProvenanceCitation(
+                { source_url: sourceUrl },
+                PROV_PUBLISHER,
+                PROV_LICENSE,
+              ),
+            };
+          });
           return textContent({ results, count: results.length });
         }
         case "fi_dp_get_decision": {
@@ -217,20 +239,48 @@ function createMcpServer(): Server {
           const decision = getDecision(parsed.reference);
           if (!decision) return errorContent(`Decision not found: ${parsed.reference}`);
           const decisionRecord = decision as unknown as Record<string, unknown>;
-          return textContent({
+          const sourceUrl =
+            typeof decisionRecord["source_url"] === "string"
+              ? (decisionRecord["source_url"] as string)
+              : null;
+          // Per spec §6: provenance envelope on `_citation`; deterministic
+          // canonical_ref envelope on `_entity_citation` (law-mcp §4.9c).
+          const out: Record<string, unknown> = {
             ...decisionRecord,
-            _citation: buildCitation(
+            _entity_citation: buildCitation(
               String(decisionRecord["reference"] ?? parsed.reference),
               String(decisionRecord["title"] ?? decisionRecord["reference"] ?? parsed.reference),
               "fi_dp_get_decision",
               { reference: parsed.reference },
-              decisionRecord["url"] as string | undefined,
+              sourceUrl,
             ),
-          });
+          };
+          if (sourceUrl) {
+            out["_citation"] = buildProvenanceCitation(
+              { source_url: sourceUrl },
+              PROV_PUBLISHER,
+              PROV_LICENSE,
+            );
+          }
+          return textContent(out);
         }
         case "fi_dp_search_guidelines": {
           const parsed = SearchGuidelinesArgs.parse(args);
-          const results = searchGuidelines({ query: parsed.query, type: parsed.type, topic: parsed.topic, limit: parsed.limit });
+          const rows = searchGuidelines({ query: parsed.query, type: parsed.type, topic: parsed.topic, limit: parsed.limit });
+          const results = rows.map((row) => {
+            const rec = row as unknown as Record<string, unknown>;
+            const sourceUrl =
+              typeof rec["source_url"] === "string" ? (rec["source_url"] as string) : "";
+            if (!sourceUrl) return rec;
+            return {
+              ...rec,
+              _citation: buildProvenanceCitation(
+                { source_url: sourceUrl },
+                PROV_PUBLISHER,
+                PROV_LICENSE,
+              ),
+            };
+          });
           return textContent({ results, count: results.length });
         }
         case "fi_dp_get_guideline": {
@@ -238,16 +288,28 @@ function createMcpServer(): Server {
           const guideline = getGuideline(parsed.id);
           if (!guideline) return errorContent(`Guideline not found: id=${parsed.id}`);
           const guidelineRecord = guideline as unknown as Record<string, unknown>;
-          return textContent({
+          const sourceUrl =
+            typeof guidelineRecord["source_url"] === "string"
+              ? (guidelineRecord["source_url"] as string)
+              : null;
+          const out: Record<string, unknown> = {
             ...guidelineRecord,
-            _citation: buildCitation(
+            _entity_citation: buildCitation(
               String(guidelineRecord["reference"] ?? guidelineRecord["id"] ?? parsed.id),
               String(guidelineRecord["title"] ?? guidelineRecord["reference"] ?? `Guideline ${parsed.id}`),
               "fi_dp_get_guideline",
               { id: String(parsed.id) },
-              guidelineRecord["url"] as string | undefined,
+              sourceUrl,
             ),
-          });
+          };
+          if (sourceUrl) {
+            out["_citation"] = buildProvenanceCitation(
+              { source_url: sourceUrl },
+              PROV_PUBLISHER,
+              PROV_LICENSE,
+            );
+          }
+          return textContent(out);
         }
         case "fi_dp_list_topics": {
           const topics = listTopics();
