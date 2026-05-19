@@ -2,7 +2,7 @@
   "name": "@ansvar/finnish-data-protection-mcp",
   "version": "0.1.0",
   "mcpName": "eu.ansvar/finnish-data-protection-mcp",
-  "description": "Tietosuojavaltuutetun toimisto (Finnish data protection authority) MCP server \u2014 decisions, sanctions, and guidance on GDPR enforcement in Finland",
+  "description": "Tietosuojavaltuutetun toimisto (Finnish data protection authority) MCP server — decisions, sanctions, and guidance on GDPR enforcement in Finland",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -45,7 +45,13 @@
     "seed": "npx tsx scripts/seed-sample.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "tsc --noEmit",
-    "test:contract": "echo \"No contract tests yet\" && exit 0"
+    "test:contract": "echo \"No contract tests yet\" && exit 0",
+    "ingest:fetch": "tsx scripts/ingest-fetch.ts",
+    "ingest:diff": "tsx scripts/ingest-diff.ts",
+    "coverage:update": "tsx scripts/update-coverage.ts",
+    "freshness:check": "tsx scripts/check-freshness.ts",
+    "coverage:verify": "tsx scripts/verify-coverage.ts",
+    "ingest:full": "npm run ingest:fetch && npm run build:db && npm run coverage:update"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.12",
