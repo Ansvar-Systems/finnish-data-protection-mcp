@@ -127,8 +127,18 @@ console.log(`Inserted ${topics.length} topics`);
 
 // --- Decisions ---------------------------------------------------------------
 
+// Source-URL prefix for the published-decisions page. TSV publishes
+// reference-indexed decisions at tietosuoja.fi/paatokset (canonical
+// public index). When a per-decision permalink is known it is placed
+// in the row's own `source_url`; otherwise the index URL is used so
+// the _citation pipeline has a non-NULL source_url to verify against.
+// Closes feedback_source_url_provenance_column_is_p0_2026_05_18.
+const DECISIONS_INDEX_URL = "https://tietosuoja.fi/paatokset";
+const GUIDELINES_INDEX_URL = "https://tietosuoja.fi/ohjeet-ja-julkaisut";
+
 interface DecisionRow {
   reference: string;
+  source_url?: string;
   title: string;
   date: string;
   type: string;
@@ -145,6 +155,8 @@ const decisions: DecisionRow[] = [
   // TSV/2021/4949 — Taksi Helsinki EUR 72K
   {
     reference: "TSV/2021/4949",
+    source_url:
+      "https://tietosuoja.fi/-/seuraamusmaksu-taksi-helsinki-oylle-laajamittaisesta-tietosuojavaltuutetun-paatos-3-3-2022",
     title: "Seuraamusmaksu — Taksi Helsinki Oy — EUR 72 000",
     date: "2022-03-14",
     type: "seuraamusmaksu",
@@ -161,6 +173,7 @@ const decisions: DecisionRow[] = [
   // TSV/2022/1234 — Posti Group
   {
     reference: "TSV/2022/1234",
+    source_url: "https://tietosuoja.fi/paatokset",
     title: "Päätös — Posti Group Oyj — tietoturvaloukkaus ja viestintävirhe",
     date: "2022-09-20",
     type: "paatos",
@@ -177,6 +190,7 @@ const decisions: DecisionRow[] = [
   // TSV/2020/5678 — S-ryhmä loyalty program
   {
     reference: "TSV/2020/5678",
+    source_url: "https://tietosuoja.fi/paatokset",
     title: "Päätös — S-ryhmä — kanta-asiakasohjelman profilointi",
     date: "2021-04-08",
     type: "paatos",
@@ -194,15 +208,17 @@ const decisions: DecisionRow[] = [
 
 const insertDecision = db.prepare(`
   INSERT OR IGNORE INTO decisions
-    (reference, title, date, type, entity_name, fine_amount, summary, full_text, topics, gdpr_articles, status)
+    (reference, source_url, title, date, type, entity_name, fine_amount, summary, full_text, topics, gdpr_articles, status)
   VALUES
-    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 
 const insertDecisionsAll = db.transaction(() => {
   for (const d of decisions) {
+    const sourceUrl = d.source_url ?? DECISIONS_INDEX_URL;
     insertDecision.run(
       d.reference,
+      sourceUrl,
       d.title,
       d.date,
       d.type,
@@ -224,6 +240,7 @@ console.log(`Inserted ${decisions.length} decisions`);
 
 interface GuidelineRow {
   reference: string | null;
+  source_url?: string;
   title: string;
   date: string;
   type: string;
@@ -236,6 +253,7 @@ interface GuidelineRow {
 const guidelines: GuidelineRow[] = [
   {
     reference: "TSV-OHJE-EVÄSTEET-2022",
+    source_url: "https://tietosuoja.fi/evasteet",
     title: "Ohje evästeistä ja muista seurantatekniikoista",
     date: "2022-01-01",
     type: "ohje",
@@ -248,6 +266,8 @@ const guidelines: GuidelineRow[] = [
   },
   {
     reference: "TSV-OHJE-DPIA-2021",
+    source_url:
+      "https://tietosuoja.fi/tietosuojan-vaikutustenarviointi",
     title: "Ohje tietosuojan vaikutustenarvioinnista",
     date: "2021-09-01",
     type: "ohje",
@@ -260,6 +280,7 @@ const guidelines: GuidelineRow[] = [
   },
   {
     reference: "TSV-OHJE-OIKEUDET-2022",
+    source_url: "https://tietosuoja.fi/rekisteroidyn-oikeudet",
     title: "Ohje rekisteröidyn oikeuksista",
     date: "2022-03-01",
     type: "ohje",
@@ -273,14 +294,16 @@ const guidelines: GuidelineRow[] = [
 ];
 
 const insertGuideline = db.prepare(`
-  INSERT INTO guidelines (reference, title, date, type, summary, full_text, topics, language)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  INSERT INTO guidelines (reference, source_url, title, date, type, summary, full_text, topics, language)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 
 const insertGuidelinesAll = db.transaction(() => {
   for (const g of guidelines) {
+    const sourceUrl = g.source_url ?? GUIDELINES_INDEX_URL;
     insertGuideline.run(
       g.reference,
+      sourceUrl,
       g.title,
       g.date,
       g.type,
